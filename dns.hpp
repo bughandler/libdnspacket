@@ -15,6 +15,14 @@
 #define _CPU_BIG_ENDIAN 1
 #endif
 
+#if !defined(__WINDOWS__) && (defined(WIN32) || defined(WIN64) || defined(_MSC_VER) || defined(_WIN32))
+#define __WINDOWS__
+#endif
+
+#ifdef __WINDOWS__
+#define strncasecmp _strnicmp
+#endif //__WINDOWS__
+
 namespace dns {
 enum class DnsOpCode {
 	RCODE_OKAY = 0, /* RFC-1035 */
@@ -508,7 +516,7 @@ private:
 
 				// compare source and destination label
 				if (src.size() != dst[0] ||
-						_strnicmp(src.data(), (const char *)&dst[1], src.size()) != 0) {
+						strncasecmp(src.data(), (const char *)&dst[1], src.size()) != 0) {
 					break;
 				}
 			}
