@@ -61,7 +61,7 @@ enum class DnsRecordType {
 };
 
 enum class DnsClass {
-	INERTNET = 1, /* Internet	    	RFC-1035 */
+	INTERNET = 1, /* Internet	    	RFC-1035 */
 	CSNET = 2, /* CSNET (obsolete)    	RFC-1035 */
 	CHAOS = 3, /* CHAOS		RFC-1035 */
 	HESIOD = 4, /* Hesiod		RFC-1035 */
