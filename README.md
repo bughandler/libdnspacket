@@ -61,7 +61,7 @@
   // Return:
   //   The byte buffer of raw DNS packet
   //
-  std::vector<std::byte> Build(const DnsMessage& message);
+  std::vector<std::byte> dns::Build(const DnsMessage& message);
   ```
 
   
