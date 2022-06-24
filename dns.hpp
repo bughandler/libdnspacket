@@ -209,7 +209,7 @@ inline uint32_t ntohl(uint32_t v) {
 //
 DnsClass MapDnsClass(uint16_t cls) {
 	const auto allCls = {
-		DnsClass::INERTNET,
+		DnsClass::INTERNET,
 		DnsClass::CSNET,
 		DnsClass::CHAOS,
 		DnsClass::HESIOD,
