@@ -27,7 +27,7 @@
 
 ### How to use
 
-1. Copy libdnspacket into your project folder
+1. Just copy `libdnspacket` into your project folder
 2. Include `libdnspacket/dns.hpp`
 3. You are ready to go
 
