@@ -20,7 +20,35 @@
 #endif
 
 #ifdef __WINDOWS__
+#include <cstdlib>
+//
+// May I assume that all windows are installed on little-endian hardware?
+// AFAIK:
+//	Windows for x86
+//	Windows for AMD64
+//	Windows for AArch32
+//	Windows for AArch64
+// They all execute in little-endian mode
+//
+#ifndef htonl
+#define htonl _byteswap_ulong
+#endif
+
+#ifndef ntohl
+#define ntohl _byteswap_ulong
+#endif
+
+#ifndef ntohs
+#define ntohs _byteswap_ushort
+#endif
+
+#ifndef htons
+#define htons _byteswap_ushort
+#endif
+
 #define strncasecmp _strnicmp
+#else
+#include <arpa/inet.h>
 #endif //__WINDOWS__
 
 namespace dns {
@@ -161,48 +189,6 @@ using LabelNameParts = std::vector<const uint8_t *>;
 
 constexpr auto MAX_UDP_DNS_PACKET_SIZE = 512;
 
-//
-// host-network byte order swapping helper routines
-//
-inline uint16_t swapWord(uint16_t v) {
-	return ((v & 0xff) << 8) | (v >> 8);
-}
-
-inline uint32_t swapDword(uint32_t v) {
-	return swapWord(v >> 16) | (swapWord((uint16_t)v) << 16);
-}
-
-inline uint16_t ntohs(uint16_t v) {
-#if _CPU_BIG_ENDIAN
-	return v;
-#else
-	return swapWord(v);
-#endif
-}
-
-inline uint16_t htons(uint16_t v) {
-#if _CPU_BIG_ENDIAN
-	return v;
-#else
-	return swapWord(v);
-#endif
-}
-
-inline uint32_t htonl(uint32_t v) {
-#if _CPU_BIG_ENDIAN
-	return v;
-#else
-	return swapDword(v);
-#endif
-}
-
-inline uint32_t ntohl(uint32_t v) {
-#if _CPU_BIG_ENDIAN
-	return v;
-#else
-	return swapDword(v);
-#endif
-}
 
 //
 // map a raw number to a enumeration value
@@ -989,10 +975,10 @@ std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
 	auto headerVars = (const DnsHeaderVars *)buf;
 
 	size_t offset = sizeof(DnsHeaderVars);
-	auto questionCount = impl::ntohs(*(uint16_t *)(buf + offset));
-	auto anwserCount = impl::ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t)));
-	auto authoriyCount = impl::ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t) * 2));
-	auto additonalCount = impl::ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t) * 3));
+	auto questionCount = ntohs(*(uint16_t *)(buf + offset));
+	auto anwserCount = ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t)));
+	auto authoriyCount = ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t) * 2));
+	auto additonalCount = ntohs(*(uint16_t *)(buf + offset + sizeof(uint16_t) * 3));
 	offset += sizeof(uint16_t) * 4;
 	assert(offset == 0x0c);
 
@@ -1039,7 +1025,7 @@ std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
 
 	// copy headers
 	memcpy(&result.dnsHead, headerVars, sizeof(DnsHeaderVars));
-	result.dnsHead.xid = impl::ntohs(headerVars->xid);
+	result.dnsHead.xid = ntohs(headerVars->xid);
 
 	// done
 	return { true, std::move(result) };
