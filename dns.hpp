@@ -11,10 +11,6 @@
 #include <variant>
 #include <vector>
 
-#if (defined(__ppc__) || defined(__PPC__) || defined(__powerpc__) || defined(__powerpc) || defined(__POWERPC__) || defined(_M_PPC) || defined(__PPC)) && defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#define _CPU_BIG_ENDIAN 1
-#endif
-
 #if !defined(__WINDOWS__) && (defined(WIN32) || defined(WIN64) || defined(_MSC_VER) || defined(_WIN32))
 #define __WINDOWS__
 #endif
