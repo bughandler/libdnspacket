@@ -180,15 +180,14 @@ struct decay_equiv : std::is_same<typename std::decay_t<T>, U>::type {};
 
 struct NameCompressResult {
 	std::string labelizedPrefix;
-	int compressedLabelCount = 0;
-	uint16_t compressedTargetOffset = 0;
+	size_t compressedLabelCount = 0;
+	size_t compressedTargetOffset = 0;
 	void *parent = nullptr;
 };
 
 using LabelNameParts = std::vector<const uint8_t *>;
 
 constexpr auto MAX_UDP_DNS_PACKET_SIZE = 512;
-
 
 //
 // map a raw number to a enumeration value
@@ -234,7 +233,7 @@ DnsRecordType MapDnsRecordType(uint16_t typ) {
 //
 // convert a plain domain name to a sequence of [[len][text]]
 //
-std::tuple<int, std::string> LablizeName(const char *name) {
+std::tuple<size_t, std::string> LablizeName(const char *name) {
 	// prepare buffer
 	std::string r;
 	auto nameLen = strlen(name);
@@ -248,7 +247,7 @@ std::tuple<int, std::string> LablizeName(const char *name) {
 	memcpy(&r[1], name, r.size() - 1);
 
 	//
-	int labelCount = 0;
+	size_t labelCount = 0;
 	size_t prevPos = 0;
 	size_t pos = 0;
 	while ((pos = r.find_first_of('.', prevPos + 1)) != std::string::npos) {
@@ -294,7 +293,7 @@ int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint8_t *ta
 	while (*ptr && ptr < tail) {
 		if (((uint8_t)*ptr & 0xc0) != 0) {
 			// compress pointer
-			uint16_t offset = htons(*(uint16_t *)ptr) & ~0xc000;
+			uint16_t offset = htons(*(uint16_t *)ptr) & (uint16_t)(~0xc000);
 			if (head + offset >= tail) {
 				// illegal
 				return 0;
@@ -339,7 +338,7 @@ int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint8_t *ta
 //
 // read out a fully qualified domain name
 //
-std::tuple<int, std::string> ReadDomainName(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail) {
+std::tuple<size_t, std::string> ReadDomainName(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail) {
 	// collect them
 	std::vector<const uint8_t *> labels;
 	auto dataLen = CollectLableNames(head, ptr, tail, labels);
@@ -365,13 +364,13 @@ class DnsNameCompressionContext {
 private:
 	struct PureName {
 		const uint8_t *ptr = nullptr;
-		uint16_t compressedLabelCount = 0;
+		size_t compressedLabelCount = 0;
 		std::list<PureName> compressedChildren;
 	};
 
 	struct CompressResult {
-		uint16_t msgOffset = 0;
-		uint16_t compressedCount = 0;
+		size_t msgOffset = 0;
+		size_t compressedCount = 0;
 		const PureName *targetNode = nullptr;
 	};
 
@@ -408,7 +407,7 @@ public:
 
 		// compressed
 		size_t compressedSize = 0;
-		for (auto idx = 0; idx < matched.compressedCount; idx++) {
+		for (size_t idx = 0; idx < matched.compressedCount; idx++) {
 			compressedSize += srcParts[srcLabelCount - idx - 1].size() + 1;
 		}
 		assert(compressedSize <= srcLabelString.size() - 1);
@@ -435,7 +434,7 @@ public:
 	//	pos: written pointer in dns message
 	//  compressedLabelCount: compressed label count
 	//
-	void PutPureName(void *parent, const uint8_t *ptr, uint16_t compressedLabelCount) {
+	void PutPureName(void *parent, const uint8_t *ptr, size_t compressedLabelCount) {
 		if (parent == nullptr) {
 			// top level
 			root_.compressedChildren.emplace_back(PureName{ ptr });
@@ -487,11 +486,9 @@ private:
 			}
 
 			// match on this node
-			auto errorOccurred = false;
-			int matched;
-			for (matched = 0;
-					matched < dstLabels.size() && matched < targetNameParts.size() - node.compressedLabelCount;
-					matched++) {
+			bool errorOccurred = false;
+			size_t matched = 0;
+			for (; matched < dstLabels.size() && matched < targetNameParts.size() - node.compressedLabelCount; matched++) {
 				// get source and destination label
 				auto &src = targetNameParts[targetNameParts.size() - matched - node.compressedLabelCount - 1];
 				auto dst = dstLabels[dstLabels.size() - matched - 1];
@@ -744,6 +741,7 @@ private:
 
 template <class T>
 uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCompressionContext *nameCompressionCtx = nullptr) {
+	assert(pch < pchEnd);
 	if constexpr (decay_equiv<T, std::string>::value) {
 		if (v.empty()) {
 			return nullptr;
@@ -784,31 +782,36 @@ uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCompressio
 			return pch;
 		}
 	} else if constexpr (decay_equiv<T, DnsClass>::value) {
-		if (pchEnd - pch < sizeof(uint16_t) || v == DnsClass::UNKNOWN) {
+		// write dns class
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == DnsClass::UNKNOWN) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
 		return pch + 2;
 	} else if constexpr (decay_equiv<T, DnsRecordType>::value) {
-		if (pchEnd - pch < sizeof(uint16_t) || v == DnsRecordType::UNKNOWN) {
+		// write dns record type
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == DnsRecordType::UNKNOWN) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
 		return pch + 2;
 	} else if constexpr (decay_equiv<T, uint8_t>::value) {
-		if (pchEnd - pch < sizeof(uint8_t)) {
+		// write uint8_t value
+		if ((size_t)(pchEnd - pch) < sizeof(uint8_t)) {
 			return nullptr;
 		}
 		*(uint8_t *)pch = v;
 		return pch + 1;
 	} else if constexpr (decay_equiv<T, uint16_t>::value) {
-		if (pchEnd - pch < sizeof(uint16_t)) {
+		// write uint16_t value
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t)) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
 		return pch + 2;
 	} else if constexpr (decay_equiv<T, uint32_t>::value) {
-		if (pchEnd - pch < sizeof(uint32_t)) {
+		// write uint32_t value
+		if ((size_t)(pchEnd - pch) < sizeof(uint32_t)) {
 			return nullptr;
 		}
 		*(uint32_t *)pch = htonl((uint32_t)v);
