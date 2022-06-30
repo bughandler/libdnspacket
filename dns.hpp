@@ -188,7 +188,7 @@ constexpr auto MAX_UDP_DNS_PACKET_SIZE = 512;
 //
 // map a raw number to a enumeration value
 //
-DnsClass MapDnsClass(uint16_t cls) {
+static DnsClass MapDnsClass(uint16_t cls) {
 	const auto allCls = {
 		DnsClass::INTERNET,
 		DnsClass::CSNET,
@@ -206,7 +206,7 @@ DnsClass MapDnsClass(uint16_t cls) {
 	return DnsClass::UNKNOWN;
 }
 
-DnsRecordType MapDnsRecordType(uint16_t typ) {
+static DnsRecordType MapDnsRecordType(uint16_t typ) {
 	const auto allTypes = {
 		DnsRecordType::A,
 		DnsRecordType::NS,
@@ -229,7 +229,7 @@ DnsRecordType MapDnsRecordType(uint16_t typ) {
 //
 // convert a plain domain name to a sequence of [[len][text]]
 //
-std::tuple<size_t, std::string> LablizeName(const char *name) {
+static std::tuple<size_t, std::string> LablizeName(const char *name) {
 	// prepare buffer
 	std::string r;
 	auto nameLen = strlen(name);
@@ -274,7 +274,7 @@ std::tuple<size_t, std::string> LablizeName(const char *name) {
 // collect all the parts of this domain name from the dns message
 // return: <data_size, name parts>
 //
-int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail, std::vector<const uint8_t *> &parts, bool recursively = true) {
+static int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail, std::vector<const uint8_t *> &parts, bool recursively = true) {
 	assert(head != nullptr && ptr != nullptr && tail != nullptr);
 	assert(head < tail);
 	if (ptr < head) {
@@ -334,7 +334,7 @@ int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint8_t *ta
 //
 // read out a fully qualified domain name
 //
-std::tuple<size_t, std::string> ReadDomainName(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail) {
+static std::tuple<size_t, std::string> ReadDomainName(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail) {
 	// collect them
 	std::vector<const uint8_t *> labels;
 	auto dataLen = CollectLableNames(head, ptr, tail, labels);
@@ -736,7 +736,7 @@ private:
 };
 
 template <class T>
-uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCompressionContext *nameCompressionCtx = nullptr) {
+static uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCompressionContext *nameCompressionCtx = nullptr) {
 	assert(pch < pchEnd);
 	if constexpr (decay_equiv<T, std::string>::value) {
 		if (v.empty()) {
@@ -818,7 +818,7 @@ uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCompressio
 	return nullptr;
 }
 
-uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnswer &record, DnsNameCompressionContext *compressCtx) {
+static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnswer &record, DnsNameCompressionContext *compressCtx) {
 #define RR_CHECK_WRITE(_v_)                    \
 	pch = WriteMetaToPacket(pch, pchEnd, _v_); \
 	if (!pch)                                  \
@@ -936,7 +936,7 @@ uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnswer &rec
 	return nullptr;
 }
 
-uint8_t *WriteQuestionToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsQuestion &question, DnsNameCompressionContext *compressCtx) {
+static uint8_t *WriteQuestionToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsQuestion &question, DnsNameCompressionContext *compressCtx) {
 #define RR_CHECK_WRITE(_v_)                    \
 	pch = WriteMetaToPacket(pch, pchEnd, _v_); \
 	if (!pch)                                  \
@@ -957,7 +957,7 @@ uint8_t *WriteQuestionToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsQuestion 
 //
 // parse a sequence of bytes into a structured DNS message
 //
-std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
+static std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
 	static_assert(sizeof(DnsMessage::dnsHead) == 4);
 	//
 	// +0x00 Xid
@@ -1033,7 +1033,7 @@ std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
 //
 // build structured DNS message into raw bytes buffer
 //
-std::vector<std::byte> Build(const DnsMessage &message) {
+static std::vector<std::byte> Build(const DnsMessage &message) {
 	static_assert(sizeof(DnsHeaderVars) == 4);
 
 	if (!message.dnsHead.xid ||
