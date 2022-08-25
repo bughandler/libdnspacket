@@ -48,7 +48,8 @@
 #endif //__WINDOWS__
 
 namespace dns {
-enum class DnsOpCode {
+
+enum DnsOpCode : uint16_t {
 	RCODE_OKAY = 0, /* RFC-1035 */
 	RCODE_FORMAT_ERROR = 1, /* RFC-1035 */
 	RCODE_SERVER_FAILURE = 2, /* RFC-1035 */
@@ -71,7 +72,7 @@ enum class DnsOpCode {
 	RCODE_PRIVATE = 3841, /* RFC-2929 */
 };
 
-enum class DnsRecordType {
+enum RecordType : uint16_t {
 	A = 1,
 	NS = 2,
 	CNAME = 5,
@@ -81,22 +82,24 @@ enum class DnsRecordType {
 	TXT = 16,
 	AAAA = 28,
 	SPF = 99,
-	UNKNOWN = 65280
+	UknownType = 65280
 };
 
-enum class DnsClass {
+enum RecordClass : uint16_t {
 	INTERNET = 1, /* Internet	    	RFC-1035 */
 	CSNET = 2, /* CSNET (obsolete)    	RFC-1035 */
 	CHAOS = 3, /* CHAOS		RFC-1035 */
 	HESIOD = 4, /* Hesiod		RFC-1035 */
 	NONE = 254, /* 			RFC-2136 */
 	ANY = 255, /* All classes		RFC-1035 */
-	UNKNOWN = 65280 /* Unknown class 	RFC-2929 */
+	UknownClass = 65280 /* Unknown class 	RFC-2929 */
 };
 
 //
 // DNS answer
 //
+using OctectStreamData = std::vector<std::byte>;
+
 using AData = uint32_t;
 
 using AAAAData = std::array<std::byte, 16>;
@@ -124,12 +127,19 @@ struct SOAData {
 };
 
 // generic dns record data
-using DnsRecordData = std::variant<AData, AAAAData, PTRData, MXData, TXTData, SOAData>;
+using DnsRecordData = std::variant<
+		OctectStreamData,
+		AData,
+		AAAAData,
+		PTRData,
+		MXData,
+		TXTData,
+		SOAData>;
 
 struct DnsAnswer {
 	std::string name;
-	DnsRecordType type = DnsRecordType::UNKNOWN;
-	DnsClass cls = DnsClass::UNKNOWN;
+	uint16_t type = RecordType::UknownType;
+	uint16_t cls = RecordClass::UknownClass;
 	uint32_t ttl = 0;
 	DnsRecordData value;
 };
@@ -139,8 +149,8 @@ struct DnsAnswer {
 //
 struct DnsQuestion {
 	std::string name;
-	DnsRecordType type = DnsRecordType::UNKNOWN;
-	DnsClass cls = DnsClass::UNKNOWN;
+	uint16_t type = RecordType::UknownType;
+	uint16_t cls = RecordClass::UknownClass;
 };
 
 //
@@ -184,47 +194,6 @@ struct NameCompressResult {
 using LabelNameParts = std::vector<const uint8_t *>;
 
 constexpr auto MAX_UDP_DNS_PACKET_SIZE = 512;
-
-//
-// map a raw number to a enumeration value
-//
-static DnsClass MapDnsClass(uint16_t cls) {
-	const auto allCls = {
-		DnsClass::INTERNET,
-		DnsClass::CSNET,
-		DnsClass::CHAOS,
-		DnsClass::HESIOD,
-		DnsClass::NONE,
-		DnsClass::ANY,
-		DnsClass::UNKNOWN
-	};
-	for (auto v : allCls) {
-		if ((uint16_t)v == cls) {
-			return v;
-		}
-	}
-	return DnsClass::UNKNOWN;
-}
-
-static DnsRecordType MapDnsRecordType(uint16_t typ) {
-	const auto allTypes = {
-		DnsRecordType::A,
-		DnsRecordType::NS,
-		DnsRecordType::CNAME,
-		DnsRecordType::SOA,
-		DnsRecordType::PTR,
-		DnsRecordType::MX,
-		DnsRecordType::TXT,
-		DnsRecordType::AAAA,
-		DnsRecordType::SPF
-	};
-	for (auto v : allTypes) {
-		if ((uint16_t)v == typ) {
-			return v;
-		}
-	}
-	return DnsRecordType::UNKNOWN;
-}
 
 //
 // convert a plain domain name to a sequence of [[len][text]]
@@ -335,6 +304,11 @@ static int CollectLableNames(const uint8_t *head, const uint8_t *ptr, const uint
 // read out a fully qualified domain name
 //
 static std::tuple<size_t, std::string> ReadDomainName(const uint8_t *head, const uint8_t *ptr, const uint8_t *tail) {
+	// is ROOT name?
+	if (*ptr == 0) {
+		return { 1, {} };
+	}
+
 	// collect them
 	std::vector<const uint8_t *> labels;
 	auto dataLen = CollectLableNames(head, ptr, tail, labels);
@@ -527,7 +501,7 @@ private:
 };
 
 //
-// extact DNS question/anwsers from the given DNS message
+// extract DNS question/answers from the given DNS message
 //
 class DnsRecordExtractor {
 public:
@@ -558,10 +532,10 @@ public:
 		// name
 		r.name = std::move(name);
 		// type
-		r.type = MapDnsRecordType(ntohs(*(uint16_t *)(head_ + offset + rsize)));
+		r.type = ntohs(*(uint16_t *)(head_ + offset + rsize));
 		rsize += sizeof(uint16_t);
 		// class
-		r.cls = MapDnsClass(ntohs(*(uint16_t *)(head_ + offset + rsize)));
+		r.cls = ntohs(*(uint16_t *)(head_ + offset + rsize));
 		rsize += sizeof(uint16_t);
 
 		// done
@@ -593,10 +567,10 @@ public:
 		// name
 		r.name = std::move(name);
 		// type
-		r.type = MapDnsRecordType(ntohs(*(uint16_t *)(head_ + offset + rsize)));
+		r.type = ntohs(*(uint16_t *)(head_ + offset + rsize));
 		rsize += sizeof(uint16_t);
 		// class
-		r.cls = MapDnsClass(ntohs(*(uint16_t *)(head_ + offset + rsize)));
+		r.cls = ntohs(*(uint16_t *)(head_ + offset + rsize));
 		rsize += sizeof(uint16_t);
 		// ttl
 		r.ttl = ntohl(*(uint32_t *)(head_ + offset + rsize));
@@ -620,9 +594,9 @@ public:
 	}
 
 private:
-	std::tuple<bool, DnsRecordData> BuildDnsData(DnsRecordType type, const uint8_t *dataPtr, uint16_t dataLength) {
+	std::tuple<bool, DnsRecordData> BuildDnsData(uint16_t type, const uint8_t *dataPtr, uint16_t dataLength) {
 		switch (type) {
-			case DnsRecordType::A: {
+			case RecordType::A: {
 				//
 				// +0x00 IPv4 (4 bytes)
 				//
@@ -631,7 +605,7 @@ private:
 				}
 				return { true, *(AData *)dataPtr };
 			} break;
-			case DnsRecordType::AAAA: {
+			case RecordType::AAAA: {
 				//
 				// +0x00 IPv6 (16 bytes)
 				//
@@ -642,7 +616,7 @@ private:
 				memcpy(&data[0], dataPtr, data.size());
 				return { true, std::move(data) };
 			} break;
-			case DnsRecordType::SOA: {
+			case RecordType::SOA: {
 				//
 				// +0x00 Primary name server (VARIANT, 2 bytes at least)
 				//	...
@@ -682,7 +656,7 @@ private:
 				r.defaultTtl = ntohl(*(uint16_t *)(dataPtr + offset + sizeof(uint32_t) * 4));
 				return { true, std::move(r) };
 			} break;
-			case DnsRecordType::MX: {
+			case RecordType::MX: {
 				//
 				// +0x00 Preference
 				// +0x02 Exchange Server Name
@@ -699,9 +673,9 @@ private:
 				data.exchange = std::move(name);
 				return { true, std::move(data) };
 			} break;
-			case DnsRecordType::NS:
-			case DnsRecordType::CNAME:
-			case DnsRecordType::PTR: {
+			case RecordType::NS:
+			case RecordType::CNAME:
+			case RecordType::PTR: {
 				//
 				// +0x00 Host name
 				//
@@ -711,8 +685,8 @@ private:
 				}
 				return { true, std::move(name) };
 			} break;
-			case DnsRecordType::TXT:
-			case DnsRecordType::SPF: {
+			case RecordType::TXT:
+			case RecordType::SPF: {
 				//
 				// +0x00 Text length
 				// +0x01 Text (VARIANT length)
@@ -725,8 +699,16 @@ private:
 				data.txt = std::string((char *)dataPtr + 1, dataLength - 1);
 				return { true, std::move(data) };
 			} break;
-			default:
-				break;
+			default: {
+				// Unsupported record type (for now)
+				OctectStreamData payload;
+				payload.resize(dataLength);
+				if (payload.empty()) {
+					return {};
+				}
+				memcpy(&payload[0], dataPtr, dataLength);
+				return { true, std::move(payload) };
+			} break;
 		}
 		return {};
 	}
@@ -777,16 +759,16 @@ static uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCom
 			pch += v.size();
 			return pch;
 		}
-	} else if constexpr (decay_equiv<T, DnsClass>::value) {
+	} else if constexpr (decay_equiv<T, RecordClass>::value) {
 		// write dns class
-		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == DnsClass::UNKNOWN) {
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordClass::UNKNOWN) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
 		return pch + 2;
-	} else if constexpr (decay_equiv<T, DnsRecordType>::value) {
+	} else if constexpr (decay_equiv<T, RecordType>::value) {
 		// write dns record type
-		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == DnsRecordType::UNKNOWN) {
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordType::UNKNOWN) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
@@ -836,7 +818,7 @@ static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnsw
 	uint16_t dataLen = 0;
 	uint8_t *dataPtr = nullptr;
 	if (auto a = std::get_if<AData>(&record.value)) {
-		if (record.type != DnsRecordType::A) {
+		if (record.type != RecordType::A) {
 			// illegal
 			return nullptr;
 		}
@@ -852,7 +834,7 @@ static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnsw
 		// done
 		return pch;
 	} else if (auto aaaa = std::get_if<AAAAData>(&record.value)) {
-		if (record.type != DnsRecordType::AAAA) {
+		if (record.type != RecordType::AAAA) {
 			// illegal
 			return nullptr;
 		}
@@ -870,7 +852,7 @@ static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnsw
 		// done
 		return pch;
 	} else if (auto mx = std::get_if<MXData>(&record.value)) {
-		if (record.type != DnsRecordType::MX ||
+		if (record.type != RecordType::MX ||
 				mx->exchange.empty()) {
 			// illegal
 			return nullptr;
@@ -891,7 +873,7 @@ static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnsw
 		// done
 		return pch;
 	} else if (auto ptr = std::get_if<PTRData>(&record.value)) {
-		if ((record.type != DnsRecordType::CNAME && record.type != DnsRecordType::PTR) ||
+		if ((record.type != RecordType::CNAME && record.type != RecordType::PTR) ||
 				ptr->empty()) {
 			// illegal
 			return nullptr;
@@ -911,7 +893,7 @@ static uint8_t *WriteRecordToPacket(uint8_t *pch, uint8_t *pchEnd, const DnsAnsw
 		// done
 		return pch;
 	} else if (auto t = std::get_if<TXTData>(&record.value)) {
-		if ((record.type != DnsRecordType::TXT && record.type != DnsRecordType::SPF) ||
+		if ((record.type != RecordType::TXT && record.type != RecordType::SPF) ||
 				t->txt.empty() ||
 				t->size != t->txt.size()) {
 			// illegal
@@ -964,7 +946,7 @@ static std::tuple<bool, DnsMessage> Parse(const uint8_t *buf, size_t bufSize) {
 	// +0x02 Flags1
 	// +0x03 Flags2
 	// +0x04 Question count
-	// +0x06 Anwser record count
+	// +0x06 Answer record count
 	// +0x08 Authority record count
 	// +0x0A Additional record count
 	//
@@ -1057,7 +1039,7 @@ static std::vector<std::byte> Build(const DnsMessage &message) {
 	// +0x02 Flags1
 	// +0x03 Flags2
 	// +0x04 Question count
-	// +0x06 Anwser record count
+	// +0x06 Answer record count
 	// +0x08 Authority record count
 	// +0x0A Additional record count
 	//
