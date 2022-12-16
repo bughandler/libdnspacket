@@ -517,7 +517,7 @@ public:
 		// +0x02 Type
 		// +0x04 Class
 		//
-		if (head_ + offset + 6 >= tail_) {
+		if (head_ + offset + 6 > tail_) {
 			return { 0, {} };
 		}
 		auto [rsize, name] = ReadDomainName(head_, head_ + offset, tail_);
@@ -544,7 +544,7 @@ public:
 
 	std::tuple<size_t, DnsAnswer> ExtractAnwser(size_t offset) {
 		//
-		// +0x00 Name (VARIANT size, at least 2 bytes)
+		// +0x00 Name (VARIANT size, at least 1 bytes \x00)
 		//	...
 		// +0x02 Type
 		// +0x04 Class
@@ -552,14 +552,14 @@ public:
 		// +0x0A Data length
 		// +0x0C Data (VARIANT)
 		//
-		if (head_ + offset + 12 >= tail_) {
+		if (head_ + offset + 11 > tail_) {
 			return { 0, {} };
 		}
 		auto [rsize, name] = ReadDomainName(head_, head_ + offset, tail_);
 		if (!rsize) {
 			return { 0, {} };
 		}
-		if (head_ + offset + rsize + 11 > tail_) {
+		if (head_ + offset + rsize + 10 > tail_) {
 			return { 0, {} };
 		}
 
@@ -702,11 +702,13 @@ private:
 			default: {
 				// Unsupported record type (for now)
 				OctectStreamData payload;
-				payload.resize(dataLength);
-				if (payload.empty()) {
-					return {};
+				if (dataLength) {
+					payload.resize(dataLength);
+					if (payload.empty()) {
+						return {};
+					}
+					memcpy(&payload[0], dataPtr, dataLength);
 				}
-				memcpy(&payload[0], dataPtr, dataLength);
 				return { true, std::move(payload) };
 			} break;
 		}
