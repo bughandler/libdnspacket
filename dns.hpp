@@ -763,14 +763,14 @@ static uint8_t *WriteMetaToPacket(uint8_t *pch, uint8_t *pchEnd, T v, DnsNameCom
 		}
 	} else if constexpr (decay_equiv<T, RecordClass>::value) {
 		// write dns class
-		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordClass::UNKNOWN) {
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordClass::UknownClass) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
 		return pch + 2;
 	} else if constexpr (decay_equiv<T, RecordType>::value) {
 		// write dns record type
-		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordType::UNKNOWN) {
+		if ((size_t)(pchEnd - pch) < sizeof(uint16_t) || v == RecordType::UknownType) {
 			return nullptr;
 		}
 		*(uint16_t *)pch = htons((uint16_t)v);
